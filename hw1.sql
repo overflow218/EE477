@@ -17,7 +17,6 @@ from Customer
 where income BETWEEN 50000 AND 60000
 ORDER BY income DESC, lastName, firstName
 LIMIT 10;
-select firstName, lastName, income from Customer where income BETWEEN 50000 AND 60000 ORDER BY income DESC, lastName, firstName LIMIT 10;
 
 /*
 (2) Select the [SIN, branch name, salary, manager’s salary - salary (that is, the salary of the employee’s manager minus salary of the employee)] 
@@ -101,6 +100,25 @@ Order the result by customer ID (asc). The result should not contain duplicate c
 Write a query satisfying all three conditions.
 */
 
+# exist 활용
+select distinct customerID
+FROM Customer natural JOIN Owns s1
+where EXISTS (SELECT customerID FROM Customer natural JOIN Owns natural JOIN Account natural JOIN Branch WHERE branchName = 'New York' and s1.customerID = customerID) 
+and NOT EXISTS (SELECT customerID FROM Customer natural JOIN Owns natural JOIN Account natural JOIN Branch WHERE branchName = 'London' and s1.customerID = customerID)
+and NOT EXISTS (SELECT distinct accNumber from (SELECT distinct customerID FROM Account natural JOIN Branch natural JOIN Owns WHERE branchName = 'LonDon') london, Customer natural JOIN Owns WHERE Customer.customerID = london.customerID and accNumber = s1.accNumber)
+ORDER BY customerID
+LIMIT 10;
+
+# in 활용
+select distinct customerID
+FROM Customer natural JOIN Owns s1
+where customerID IN (SELECT customerID FROM Customer natural JOIN Owns natural JOIN Account natural JOIN Branch WHERE branchName = 'New York') 
+and customerID NOT IN (SELECT customerID FROM Customer natural JOIN Owns natural JOIN Account natural JOIN Branch WHERE branchName = 'London')
+and accNumber NOT IN (SELECT distinct accNumber from (SELECT distinct customerID FROM Account natural JOIN Branch natural JOIN Owns WHERE branchName = 'LonDon') london, Customer natural JOIN Owns WHERE Customer.customerID = london.customerID)
+ORDER BY customerID
+LIMIT 10;
+
+
 # 뉴욕에 있는 계좌있는 사람 정보
 SELECT accNumber
 FROM Account natural JOIN Branch
@@ -122,13 +140,7 @@ from (SELECT distinct customerID FROM Account natural JOIN Branch natural JOIN O
 Customer natural JOIN Owns
 WHERE Customer.customerID = london.customerID
 
-# 일단 되는거
-select distinct customerId
-FROM Customer natural JOIN Owns s1
-where EXISTS (SELECT customerID FROM Customer natural JOIN Owns natural JOIN Account natural JOIN Branch WHERE branchName = 'New York' and s1.customerID = customerID) 
-and NOT EXISTS (SELECT customerID FROM Customer natural JOIN Owns natural JOIN Account natural JOIN Branch WHERE branchName = 'London' and s1.customerID = customerID)
-and NOT EXISTS (SELECT distinct accNumber from (SELECT distinct customerID FROM Account natural JOIN Branch natural JOIN Owns WHERE branchName = 'LonDon') london, Customer natural JOIN Owns WHERE Customer.customerID = london.customerID and accNumber = s1.accNumber)
-LIMIT 10;
+
 
 /*
 (8) Select the [SIN, first name, last name, salary, branch name] of employees who earn more than $50,000. 
@@ -163,7 +175,6 @@ ORDER BY branchName DESC, firstName
 LIMIT 10;
 
 /*
-이거 아직 다 못했음
 (10) Select the [customer ID, first name, last name, income] of customers 
 who have incomes greater than $5000 
 and own accounts in ALL of the branches that Helen Morgan owns accounts in, 
@@ -173,11 +184,21 @@ a customer who owns accounts in London, Berlin, and New York has to be included 
 If a customer owns accounts in London and New York, the customer does not have to be in the result. 
 The result should also contain Helen Morgan.
 */
-
-SELECT *
-from Customer natural JOIN Owns natural JOIN Account natural JOIN Branch
+# helen 모건씨가 계좌 가지고 있는 브랜치 주소
+SELECT branchNumber
+from Customer natural JOIN Owns natural JOIN Account
 WHERE firstName = 'Helen' and lastName = 'Morgan'
-order by customerID
+
+SELECT customerID, firstName, lastName, income
+FROM Customer c1
+WHERE income > 5000 and not EXISTS (SELECT branchNumber
+from Customer natural JOIN Owns natural JOIN Account
+WHERE firstName = 'Helen' and lastName = 'Morgan' and branchNumber NOT in (select branchNumber 
+FROM Customer natural JOIN Owns natural JOIN Account 
+where customerID = c1.customerID))
+ORDER BY income DESC;
+
+
 
 /*
 (11) Select the [SIN, first name, last name, salary] of the lowest paid employee (or em- ployees) 
@@ -186,16 +207,16 @@ of the Berlin branch, and order by sin (asc).
 SELECT sin, firstName, lastName, salary
 from Employee natural JOIN Branch, (SELECT MIN(salary) as minSalary from Employee natural JOIN Branch GROUP BY branchName HAVING branchName = 'Berlin') as s2
 WHERE branchName = 'Berlin' and salary <= s2.minSalary
-ORDER BY sin
+ORDER BY sin;
 
 /*
 (12) Select the [branch name, the difference of maximum salary and minimum salary (salary gap), average salary] 
 of the employees at each branch, and order by branch name (asc).
 */
-SELECT branchName, MAX(salary) - MIN(salary) as salaryGap, AVG(salary)
+SELECT branchName, MAX(salary) - MIN(salary) as salaryGap, AVG(salary) as avgSalary
 from Employee natural JOIN Branch 
 GROUP BY branchName
-ORDER BY branchName
+ORDER BY branchName;
 
 /*
 (13) Select two values: 
@@ -205,9 +226,9 @@ The result should contain two numbers in a single row.
 Name the two columns countNY and coundDIFF using the AS keyword.
 */
 
-SELECT COUNT(sin) as countNY, COUNT(DISTINCT lastName) as countDIFF
+SELECT COUNT(sin) as countNY, COUNT(DISTINCT lastName) as countLastName
 from Employee natural JOIN Branch
-WHERE branchName = 'New York'
+WHERE branchName = 'New York';
 
 /*
 (14) Select the [sum of the employee salaries] at the Moscow branch. The result should contain a single number.
@@ -224,7 +245,8 @@ from only four different types of branches, and order by last name (asc) then fi
 
 SELECT customerID, firstName, lastName
 from Customer natural JOIN (SELECT customerID from Customer natural JOIN Owns natural JOIN Account natural JOIN Branch GROUP BY customerID HAVING COUNT(DISTINCT branchNumber) = 4) s2
-ORDER BY lastName, firstName;
+ORDER BY lastName, firstName
+LIMIT 10;
 
 /*
 (16) Select the [average income] of customers older than 60 
@@ -232,7 +254,8 @@ and [average income] of customers younger than 26.
 The result should contain the two numbers in a single row. 
 (Hint: you can use MySQL time and date functions here):
 */
-SELECT (SELECT AVG(income) from Customer WHERE TIMESTAMPDIFF(YEAR, birthData, CURRENT_DATE()) > 60) as oldManIncome, (SELECT AVG(income) from Customer WHERE TIMESTAMPDIFF(YEAR, birthData, CURRENT_DATE()) < 26) as youngManIncome;
+SELECT (SELECT AVG(income) from Customer WHERE TIMESTAMPDIFF(YEAR, birthData, CURRENT_DATE()) > 60) as oldManIncome, 
+(SELECT AVG(income) from Customer WHERE TIMESTAMPDIFF(YEAR, birthData, CURRENT_DATE()) < 26) as youngManIncome;
 
 /*
 
@@ -250,4 +273,59 @@ ORDER BY customerID
 LIMIT 10;
 
 
+/*
+(18) Select the [account number, balance, sum of transaction amounts] for accounts in the Berlin branch 
+that have at least 10 transactions, and order by transaction sum (asc).
+*/
 
+SELECT accNumber, balance, sum(amount) as transactionSum
+FROM Account natural JOIN Branch natural JOIN Transactions
+WHERE branchName = 'Berlin'
+GROUP BY accNumber
+HAVING COUNT(transNumber) >= 10
+ORDER BY transactionSum
+LIMIT 10;
+
+
+/*
+(19) Select the [branch name, account type, average transaction amount] of each account type of a branch 
+for branches that have at least 50 accounts of any type. 
+Order the result by branch name (asc) then account type (asc).
+*/
+
+SELECT branchName, type, AVG(amount) as avgTransactionAmount
+from Branch natural JOIN Account natural JOIN Transactions, (SELECT branchNumber from Branch natural JOIN Account GROUP BY branchNumber HAVING COUNT(accNumber) >= 50) s2
+WHERE Branch.branchNumber = s2.branchNumber
+GROUP BY branchName, type
+ORDER BY branchName, type
+LIMIT 10;
+
+/*
+(20) Select the [account type, account number, transaction number, amount of transactions] of accounts 
+where the average transaction amount is greater than three times the (overall) average transaction amount 
+of accounts of that type. For example, if the average transaction amount of all business accounts is $2,000 
+then return transactions from business accounts where the average transaction amount for that account 
+is greater than $6,000. 
+Order by account type (asc), account number (asc), and then transaction number (asc). 
+Note that all transactions of the qualifying accounts should be returned 
+even if their amounts are less than the average amount of the account type.
+*/
+
+# 어카운트 타입별 평균 금액
+SELECT type, AVG(amount) as avgAmount
+FROM Account natural JOIN Transactions
+GROUP BY type
+
+# accNumber, type 별 평균 transaction 금액
+SELECT accNumber, type, AVG(amount) as avgAmount
+FROM Account natural JOIN Transactions
+GROUP BY accNumber, type
+
+# 최종
+SELECT s1.type, accNumber, transNumber, amount
+FROM Transactions natural JOIN (SELECT accNumber, type, AVG(amount) as avgAmount FROM Account natural JOIN Transactions GROUP BY accNumber, type) s1, (SELECT type, AVG(amount) as avgAmount
+FROM Account natural JOIN Transactions
+GROUP BY type) s2
+WHERE s1.type = s2.type and s1.avgAmount > 3 * s2.avgAmount
+ORDER BY type, accNumber, transNumber
+LIMIT 10;
